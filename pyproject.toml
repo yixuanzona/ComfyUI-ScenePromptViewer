@@ -1,0 +1,20 @@
+[project]
+name = "comfyui-scene-prompt-viewer"
+description = "A ComfyUI node for pairing a folder of images with prompts via an inline card UI, with 8 individual output sockets plus a batch output."
+version = "1.0.0"
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.9"
+# No runtime deps beyond what ComfyUI itself provides
+# (Pillow, torch, numpy, aiohttp are all shipped with ComfyUI).
+dependencies = []
+
+[project.urls]
+Repository  = "https://github.com/CHANGE-ME/ComfyUI-ScenePromptViewer"
+Issues      = "https://github.com/CHANGE-ME/ComfyUI-ScenePromptViewer/issues"
+
+[tool.comfy]
+# Fill in your Comfy Registry publisher ID after running `comfy node init`.
+PublisherId = "CHANGE-ME"
+DisplayName = "Scene Prompt Viewer"
+Icon = ""
