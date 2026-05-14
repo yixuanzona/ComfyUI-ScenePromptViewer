@@ -91,6 +91,177 @@ function applyStyle(el, css) {
     return el;
 }
 
+// ----------------------------------------------------------------------- //
+// Dynamic socket visibility (slot_count widget)
+// ----------------------------------------------------------------------- //
+function ensureOutputVisible(node, name, type, shouldExist) {
+    const idx = node.outputs
+        ? node.outputs.findIndex(o => o.name === name)
+        : -1;
+    if (shouldExist && idx === -1) {
+        node.addOutput(name, type);
+    } else if (!shouldExist && idx !== -1) {
+        node.removeOutput(idx);
+    }
+}
+
+function ensureInputVisible(node, name, type, shouldExist) {
+    const idx = node.inputs
+        ? node.inputs.findIndex(inp => inp.name === name)
+        : -1;
+    if (shouldExist && idx === -1) {
+        node.addInput(name, type);
+    } else if (!shouldExist && idx !== -1) {
+        node.removeInput(idx);
+    }
+}
+
+function applySlotCount(node, n) {
+    // Outputs are added/removed dynamically. Inputs (`prompt_in_N`) stay
+    // declared all 8 always — we hide unused ones by parking them at
+    // (-9999, -9999) via `inputs[i].pos`. Dynamic add/removeInput on
+    // `forceInput: True` STRING optionals leaks a phantom widget that
+    // appears as a duplicate "ghost" socket dot.
+    n = Math.max(0, Math.min(MAX_SLOTS, n | 0));
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+        ensureOutputVisible(node, `image_${i}`,  "IMAGE",  i <= n);
+        ensureOutputVisible(node, `prompt_${i}`, "STRING", i <= n);
+    }
+    // Drop any wires to inputs that are now hidden by slot_count. With
+    // dynamic removeInput we used to get this for free; now that inputs
+    // stay, we have to disconnect manually so reducing slot_count
+    // actually severs the override.
+    if (node.inputs && typeof node.disconnectInput === "function") {
+        for (let i = n + 1; i <= MAX_SLOTS; i++) {
+            const idx = node.inputs.findIndex(
+                inp => inp.name === `prompt_in_${i}`
+            );
+            if (idx >= 0 && node.inputs[idx].link != null) {
+                node.disconnectInput(idx);
+            }
+        }
+    }
+    node.setDirtyCanvas(true, true);
+}
+
+// ----------------------------------------------------------------------- //
+// Custom modal for "Import all prompts"
+// ----------------------------------------------------------------------- //
+function showImportModal(initialText, onSubmit) {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.65);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: monospace;
+    `;
+
+    const dialog = document.createElement("div");
+    dialog.style.cssText = `
+        width: 600px;
+        max-width: 92vw;
+        max-height: 92vh;
+        background: #232323;
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 18px;
+        color: ${COLORS.text};
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    `;
+    overlay.appendChild(dialog);
+
+    const title = document.createElement("div");
+    title.textContent = "Import all prompts";
+    title.style.cssText = "font-size: 14px; font-weight: 500; color: #fff;";
+    dialog.appendChild(title);
+
+    const help = document.createElement("div");
+    help.style.cssText =
+        "font-size: 11px; color: #999; line-height: 1.6; white-space: pre-line;";
+    help.textContent =
+        "Format A — filename mapping:\n" +
+        "  001.png | a quiet forest at dawn\n" +
+        "  002.png | a cyberpunk alley with neon\n\n" +
+        "Format B — one prompt per line (matches scan order):\n" +
+        "  a quiet forest at dawn\n" +
+        "  a cyberpunk alley with neon\n\n" +
+        "Half-width | and full-width ｜ both work. Case-insensitive.";
+    dialog.appendChild(help);
+
+    const textarea = document.createElement("textarea");
+    textarea.value = initialText || "";
+    textarea.spellcheck = false;
+    textarea.style.cssText = `
+        flex: 1 1 auto;
+        min-height: 320px;
+        background: ${COLORS.bgInput};
+        border: 1px solid #444;
+        border-radius: 3px;
+        padding: 8px 10px;
+        color: ${COLORS.text};
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.55;
+        resize: vertical;
+        outline: none;
+        box-sizing: border-box;
+        white-space: pre-wrap;
+        word-break: break-word;
+    `;
+    dialog.appendChild(textarea);
+
+    const footer = document.createElement("div");
+    footer.style.cssText =
+        "display: flex; gap: 8px; justify-content: flex-end;";
+    const cancelBtn = makeButton("Cancel");
+    const submitBtn = makeButton("Import", "accent");
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    dialog.appendChild(footer);
+
+    const hint = document.createElement("div");
+    hint.style.cssText =
+        "font-size: 10px; color: #666; text-align: right;";
+    hint.textContent = "ESC to cancel · Ctrl+Enter to import";
+    dialog.appendChild(hint);
+
+    const close = () => {
+        document.removeEventListener("keydown", keyHandler);
+        overlay.remove();
+    };
+    const submit = () => {
+        const val = textarea.value;
+        close();
+        onSubmit(val);
+    };
+    const keyHandler = (e) => {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            close();
+        } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            e.preventDefault();
+            submit();
+        }
+    };
+
+    cancelBtn.addEventListener("click", close);
+    submitBtn.addEventListener("click", submit);
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) close();
+    });
+    document.addEventListener("keydown", keyHandler);
+
+    document.body.appendChild(overlay);
+    setTimeout(() => textarea.focus(), 0);
+}
+
 function makeButton(label, variant = "default") {
     const btn = document.createElement("button");
     btn.textContent = label;
@@ -112,7 +283,7 @@ function makeButton(label, variant = "default") {
 // ----------------------------------------------------------------------- //
 // Card builder
 // ----------------------------------------------------------------------- //
-function buildCard(scene, index, prompt, isBatchOnly, onPromptChange) {
+function buildCard(scene, index, prompt, isBatchOnly, isOverridden, onPromptChange) {
     const card = document.createElement("div");
     applyStyle(card, `
         background: ${COLORS.bgCard};
@@ -187,11 +358,22 @@ function buildCard(scene, index, prompt, isBatchOnly, onPromptChange) {
     applyStyle(fname, `
         font-size: 11px;
         color: ${COLORS.muted};
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.3;
+        word-break: break-all;
     `);
     fname.textContent = scene.filename;
+    fname.title = scene.filename;
+    if (isOverridden) {
+        const badge = document.createElement("span");
+        badge.textContent = " ← input override";
+        badge.style.cssText = `
+            font-size: 10px;
+            color: ${COLORS.accent};
+            margin-left: 6px;
+            font-style: italic;
+        `;
+        fname.appendChild(badge);
+    }
     rightCol.appendChild(fname);
 
     const textarea = document.createElement("textarea");
@@ -230,6 +412,14 @@ function buildCard(scene, index, prompt, isBatchOnly, onPromptChange) {
         onPromptChange(scene.filename, textarea.value);
     });
 
+    if (isOverridden) {
+        textarea.disabled = true;
+        textarea.style.opacity = "0.4";
+        textarea.style.cursor = "not-allowed";
+        textarea.title =
+            "Overridden by connected input — typed text is ignored";
+    }
+
     rightCol.appendChild(textarea);
     card.appendChild(rightCol);
     return card;
@@ -263,6 +453,21 @@ app.registerExtension({
             }
             this._dataWidget = dataWidget;
 
+            // Cache the slot_count widget so renderCards / refreshStatus can
+            // read it; hook its callback to dynamically toggle socket visibility.
+            const slotCountWidget = this.widgets?.find(
+                w => w.name === "slot_count"
+            );
+            this._spvSlotCountWidget = slotCountWidget;
+            if (slotCountWidget) {
+                const origCallback = slotCountWidget.callback;
+                slotCountWidget.callback = (v, ...rest) => {
+                    origCallback?.call(slotCountWidget, v, ...rest);
+                    applySlotCount(this, parseInt(v) || 0);
+                    this._renderCards?.();
+                };
+            }
+
             // ----- DOM widget container ----- //
             const wrapper = document.createElement("div");
             applyStyle(wrapper, `
@@ -278,12 +483,11 @@ app.registerExtension({
             applyStyle(toolbar, "display: flex; gap: 6px; align-items: center;");
 
             const rescanBtn = makeButton("↻ Rescan", "accent");
-            const importBtn = makeButton("Import");
-            const exportBtn = makeButton("Export");
+            const importBtn = makeButton("Import all prompts");
+            const exportBtn = makeButton("Export all prompts");
 
             const statusEl = document.createElement("div");
             applyStyle(statusEl, `
-                flex: 1;
                 color: ${COLORS.muted};
                 font-size: 11px;
                 text-align: right;
@@ -297,7 +501,6 @@ app.registerExtension({
             toolbar.appendChild(rescanBtn);
             toolbar.appendChild(importBtn);
             toolbar.appendChild(exportBtn);
-            toolbar.appendChild(statusEl);
             wrapper.appendChild(toolbar);
 
             // card list
@@ -316,6 +519,7 @@ app.registerExtension({
                 box-sizing: border-box;
             `);
             wrapper.appendChild(cardList);
+            wrapper.appendChild(statusEl);
 
             this._spvWrapper   = wrapper;
             this._spvCardList  = cardList;
@@ -329,6 +533,81 @@ app.registerExtension({
                 }
             };
 
+            const getSlotCount = () => {
+                const w = this._spvSlotCountWidget;
+                const raw = w ? w.value : MAX_SLOTS;
+                const n = parseInt(raw);
+                if (Number.isNaN(n)) return MAX_SLOTS;
+                return Math.max(0, Math.min(MAX_SLOTS, n));
+            };
+
+            // Measure each card's vertical centre and pin the matching
+            // `prompt_in_N` input slot to that y (in node-local coords).
+            // Slots that have no corresponding card, or are beyond
+            // `slot_count`, get parked off-screen at (-9999, -9999).
+            const recomputeCardSocketPositions = () => {
+                const scenes = this.sceneState?.scenes || [];
+                const slotCount = getSlotCount();
+
+                const wrapperWidget = this.widgets?.find(
+                    w => w.element === wrapper
+                );
+                const widgetY = (wrapperWidget &&
+                    typeof wrapperWidget.last_y === "number")
+                    ? wrapperWidget.last_y
+                    : 0;
+                const zoom = (app?.canvas?.ds?.scale) || 1;
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const cardEls = Array.from(cardList.children)
+                    .filter(el => el instanceof HTMLElement);
+
+                const posMap = {};
+                const limit = Math.min(scenes.length, cardEls.length);
+                for (let idx = 0; idx < limit; idx++) {
+                    const r = cardEls[idx].getBoundingClientRect();
+                    if (r.height <= 0) continue;
+                    const yInWrapper =
+                        (r.top - wrapperRect.top + r.height / 2) / zoom;
+                    posMap[idx + 1] = widgetY + yInWrapper;
+                }
+
+                const slotX =
+                    (window.LiteGraph?.NODE_SLOT_HEIGHT || 20) * 0.5;
+                for (let n = 1; n <= MAX_SLOTS; n++) {
+                    const slotIdx = this.inputs
+                        ? this.inputs.findIndex(
+                            inp => inp.name === `prompt_in_${n}`
+                        )
+                        : -1;
+                    if (slotIdx < 0) continue;
+                    const slot = this.inputs[slotIdx];
+                    if (n <= scenes.length && n <= slotCount &&
+                        posMap[n] != null) {
+                        slot.pos = [slotX, posMap[n]];
+                    } else {
+                        slot.pos = [-9999, -9999];
+                    }
+                }
+                this.setDirtyCanvas(true, true);
+            };
+            this._spvRecomputePositions = recomputeCardSocketPositions;
+
+            // If a user drags a textarea taller, the cards below shift —
+            // re-pin the sockets. rAF-debounced so a single layout pass
+            // doesn't fire dozens of recomputes.
+            if (typeof ResizeObserver !== "undefined") {
+                const ro = new ResizeObserver(() => {
+                    if (this._spvResizePending) return;
+                    this._spvResizePending = true;
+                    requestAnimationFrame(() => {
+                        this._spvResizePending = false;
+                        this._spvRecomputePositions?.();
+                    });
+                });
+                ro.observe(cardList);
+                this._spvResizeObserver = ro;
+            }
+
             const refreshStatus = (extra) => {
                 const total = this.sceneState.scenes.length;
                 if (total === 0) {
@@ -341,9 +620,10 @@ app.registerExtension({
                     const p = this.sceneState.prompts[s.filename] || "";
                     if (p.trim()) filled++;
                 }
+                const slotCount = getSlotCount();
                 let text = `${filled} / ${total} filled`;
-                if (total > MAX_SLOTS) {
-                    text += ` · slots ${MAX_SLOTS + 1}-${total} batch-only`;
+                if (total > slotCount) {
+                    text += ` · slots ${slotCount + 1}-${total} batch-only`;
                 }
                 if (extra) text = `${extra} · ${text}`;
                 statusEl.textContent = text;
@@ -367,17 +647,28 @@ app.registerExtension({
                         "Fill image_folder above, then click ↻ Rescan to load scenes.";
                     cardList.appendChild(empty);
                     refreshStatus();
+                    // No scenes → all prompt_in_N inputs hide.
+                    requestAnimationFrame(() =>
+                        this._spvRecomputePositions?.()
+                    );
                     return;
                 }
 
+                const slotCount = getSlotCount();
                 scenes.forEach((scene, idx) => {
                     const i = idx + 1;
-                    const currentPrompt = this.sceneState.prompts[scene.filename] || "";
+                    const currentPrompt =
+                        this.sceneState.prompts[scene.filename] || "";
+                    const inputSlot = this.inputs?.find(
+                        inp => inp.name === `prompt_in_${i}`
+                    );
+                    const isOverridden = inputSlot?.link != null;
                     const card = buildCard(
                         scene,
                         i,
                         currentPrompt,
-                        i > MAX_SLOTS,
+                        i > slotCount,
+                        isOverridden,
                         (fname, val) => {
                             this.sceneState.prompts[fname] = val;
                             persistState();
@@ -388,6 +679,15 @@ app.registerExtension({
                 });
 
                 refreshStatus();
+                // Pin prompt_in_N sockets to each card's row after DOM
+                // settles. Second rAF guards against the first paint
+                // returning zero-height rects on slow layouts.
+                requestAnimationFrame(() => {
+                    this._spvRecomputePositions?.();
+                    requestAnimationFrame(() =>
+                        this._spvRecomputePositions?.()
+                    );
+                });
             };
             this._renderCards = renderCards;
 
@@ -446,26 +746,17 @@ app.registerExtension({
                     refreshStatus("rescan first to populate scene list");
                     return;
                 }
-                const text = window.prompt(
-                    "Paste a prompt block.\n\n" +
-                    "Format A — filename mapping:\n" +
-                    "  001.png | a quiet forest at dawn\n" +
-                    "  002.png | a cyberpunk alley with neon\n\n" +
-                    "Format B — one prompt per line (matches scan order):\n" +
-                    "  a quiet forest at dawn\n" +
-                    "  a cyberpunk alley with neon\n\n" +
-                    "Half-width | and full-width ｜ both work.",
-                    ""
-                );
-                if (text === null || text === "") return;
-                const parsed = parsePromptText(text, this.sceneState.scenes);
-                if (Object.keys(parsed).length === 0) {
-                    refreshStatus("import: no matches found");
-                    return;
-                }
-                Object.assign(this.sceneState.prompts, parsed);
-                persistState();
-                renderCards();
+                showImportModal("", (text) => {
+                    if (!text || !text.trim()) return;
+                    const parsed = parsePromptText(text, this.sceneState.scenes);
+                    if (Object.keys(parsed).length === 0) {
+                        refreshStatus("import: no matches found");
+                        return;
+                    }
+                    Object.assign(this.sceneState.prompts, parsed);
+                    persistState();
+                    renderCards();
+                });
             });
 
             // ----- Export button ----- //
@@ -510,7 +801,25 @@ app.registerExtension({
             // initial paint
             renderCards();
 
+            // Defer to next tick so widgets are fully wired before we mutate
+            // the node's input/output lists.
+            setTimeout(() => {
+                applySlotCount(this, getSlotCount());
+                this._renderCards?.();
+            }, 0);
+
             return r;
+        };
+
+        // ---- onConnectionsChange: refresh card override state ---------- //
+        const onConnectionsChange = nodeType.prototype.onConnectionsChange;
+        nodeType.prototype.onConnectionsChange = function (
+            type, slotIndex, connected, linkInfo, ioSlot
+        ) {
+            onConnectionsChange?.apply(this, arguments);
+            if (ioSlot?.name?.startsWith("prompt_in_")) {
+                this._renderCards?.();
+            }
         };
 
         // ---- onConfigure: restore from saved workflow ------------------ //
@@ -533,6 +842,16 @@ app.registerExtension({
                     this.sceneState = { scenes: [], prompts: {} };
                 }
             }
+
+            // Re-apply socket visibility from the restored slot_count value.
+            const slotCountWidget = this.widgets?.find(
+                w => w.name === "slot_count"
+            );
+            this._spvSlotCountWidget = slotCountWidget;
+            if (slotCountWidget) {
+                applySlotCount(this, parseInt(slotCountWidget.value) || 0);
+            }
+
             this._renderCards?.();
             return r;
         };

@@ -34,6 +34,10 @@ class ScenePromptViewer:
 
     @classmethod
     def INPUT_TYPES(cls):
+        optional = {
+            f"prompt_in_{i}": ("STRING", {"forceInput": True})
+            for i in range(1, MAX_SLOTS + 1)
+        }
         return {
             "required": {
                 "image_folder": ("STRING", {
@@ -44,13 +48,20 @@ class ScenePromptViewer:
                     ["filename_asc", "filename_desc"],
                     {"default": "filename_asc"},
                 ),
+                "slot_count": ("INT", {
+                    "default": 1,
+                    "min": 0,
+                    "max": MAX_SLOTS,
+                    "step": 1,
+                }),
                 # Hidden in the UI by the JS extension; stores the per-image
                 # prompts and thumbnail cache as a JSON string.
                 "scene_data_json": ("STRING", {
                     "default": "{}",
                     "multiline": True,
                 }),
-            }
+            },
+            "optional": optional,
         }
 
     RETURN_TYPES = (
@@ -72,7 +83,14 @@ class ScenePromptViewer:
     # ------------------------------------------------------------------ #
     # main entry
     # ------------------------------------------------------------------ #
-    def execute(self, image_folder: str, sort_by: str, scene_data_json: str):
+    def execute(
+        self,
+        image_folder: str,
+        sort_by: str,
+        slot_count: int,
+        scene_data_json: str,
+        **kwargs,
+    ):
         folder_str = clean_path(image_folder)
         folder = Path(folder_str)
         if not folder.is_dir():
@@ -122,11 +140,15 @@ class ScenePromptViewer:
         filled = empty = 0
 
         for i, (fname, prompt_text, img) in enumerate(paired, start=1):
-            if prompt_text.strip():
+            # External per-slot override wins over the card textarea.
+            override = kwargs.get(f"prompt_in_{i}")
+            final_prompt = override if isinstance(override, str) else prompt_text
+
+            if final_prompt.strip():
                 filled += 1
             else:
                 empty += 1
-            output_prompts.append(prompt_text)
+            output_prompts.append(final_prompt)
 
             fitted = self._letterbox(img, target_w, target_h)
             arr = np.asarray(fitted, dtype=np.float32) / 255.0
@@ -162,13 +184,14 @@ class ScenePromptViewer:
             status += f" · {empty} empty"
         if load_failures:
             status += f" · {len(load_failures)} load failures"
-        if total > MAX_SLOTS:
-            status += f" · slots {MAX_SLOTS + 1}-{total} batch-only"
+        if total > slot_count:
+            status += f" · slots {slot_count + 1}-{total} batch-only"
 
         return {
             "ui": {
                 "scene_data": scene_data,
                 "status":     [status],
+                "slot_count": [slot_count],
                 "max_slots":  [MAX_SLOTS],
             },
             "result": (image_batch, combined_prompt, *individual),
