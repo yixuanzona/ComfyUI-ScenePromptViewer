@@ -35,7 +35,13 @@ class ScenePromptViewer:
     @classmethod
     def INPUT_TYPES(cls):
         optional = {
-            f"prompt_in_{i}": ("STRING", {"forceInput": True})
+            # `multiline: True` is a hint to connected sources (e.g. Primitive
+            # nodes) so their widget renders as a textarea, not a single-line
+            # value field. The input itself stays socket-only via forceInput.
+            f"prompt_in_{i}": ("STRING", {
+                "forceInput": True,
+                "multiline": True,
+            })
             for i in range(1, MAX_SLOTS + 1)
         }
         return {
