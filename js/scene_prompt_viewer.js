@@ -117,29 +117,11 @@ function ensureInputVisible(node, name, type, shouldExist) {
 }
 
 function applySlotCount(node, n) {
-    // Outputs are added/removed dynamically. Inputs (`prompt_in_N`) stay
-    // declared all 8 always — we hide unused ones by parking them at
-    // (-9999, -9999) via `inputs[i].pos`. Dynamic add/removeInput on
-    // `forceInput: True` STRING optionals leaks a phantom widget that
-    // appears as a duplicate "ghost" socket dot.
     n = Math.max(0, Math.min(MAX_SLOTS, n | 0));
     for (let i = 1; i <= MAX_SLOTS; i++) {
-        ensureOutputVisible(node, `image_${i}`,  "IMAGE",  i <= n);
-        ensureOutputVisible(node, `prompt_${i}`, "STRING", i <= n);
-    }
-    // Drop any wires to inputs that are now hidden by slot_count. With
-    // dynamic removeInput we used to get this for free; now that inputs
-    // stay, we have to disconnect manually so reducing slot_count
-    // actually severs the override.
-    if (node.inputs && typeof node.disconnectInput === "function") {
-        for (let i = n + 1; i <= MAX_SLOTS; i++) {
-            const idx = node.inputs.findIndex(
-                inp => inp.name === `prompt_in_${i}`
-            );
-            if (idx >= 0 && node.inputs[idx].link != null) {
-                node.disconnectInput(idx);
-            }
-        }
+        ensureOutputVisible(node, `image_${i}`,    "IMAGE",  i <= n);
+        ensureOutputVisible(node, `prompt_${i}`,   "STRING", i <= n);
+        ensureInputVisible(node,  `prompt_in_${i}`, "STRING", i <= n);
     }
     node.setDirtyCanvas(true, true);
 }
@@ -358,11 +340,11 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden, onPromptChan
     applyStyle(fname, `
         font-size: 11px;
         color: ${COLORS.muted};
-        line-height: 1.3;
-        word-break: break-all;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     `);
     fname.textContent = scene.filename;
-    fname.title = scene.filename;
     if (isOverridden) {
         const badge = document.createElement("span");
         badge.textContent = " ← input override";
@@ -541,73 +523,6 @@ app.registerExtension({
                 return Math.max(0, Math.min(MAX_SLOTS, n));
             };
 
-            // Measure each card's vertical centre and pin the matching
-            // `prompt_in_N` input slot to that y (in node-local coords).
-            // Slots that have no corresponding card, or are beyond
-            // `slot_count`, get parked off-screen at (-9999, -9999).
-            const recomputeCardSocketPositions = () => {
-                const scenes = this.sceneState?.scenes || [];
-                const slotCount = getSlotCount();
-
-                const wrapperWidget = this.widgets?.find(
-                    w => w.element === wrapper
-                );
-                const widgetY = (wrapperWidget &&
-                    typeof wrapperWidget.last_y === "number")
-                    ? wrapperWidget.last_y
-                    : 0;
-                const zoom = (app?.canvas?.ds?.scale) || 1;
-                const wrapperRect = wrapper.getBoundingClientRect();
-                const cardEls = Array.from(cardList.children)
-                    .filter(el => el instanceof HTMLElement);
-
-                const posMap = {};
-                const limit = Math.min(scenes.length, cardEls.length);
-                for (let idx = 0; idx < limit; idx++) {
-                    const r = cardEls[idx].getBoundingClientRect();
-                    if (r.height <= 0) continue;
-                    const yInWrapper =
-                        (r.top - wrapperRect.top + r.height / 2) / zoom;
-                    posMap[idx + 1] = widgetY + yInWrapper;
-                }
-
-                const slotX =
-                    (window.LiteGraph?.NODE_SLOT_HEIGHT || 20) * 0.5;
-                for (let n = 1; n <= MAX_SLOTS; n++) {
-                    const slotIdx = this.inputs
-                        ? this.inputs.findIndex(
-                            inp => inp.name === `prompt_in_${n}`
-                        )
-                        : -1;
-                    if (slotIdx < 0) continue;
-                    const slot = this.inputs[slotIdx];
-                    if (n <= scenes.length && n <= slotCount &&
-                        posMap[n] != null) {
-                        slot.pos = [slotX, posMap[n]];
-                    } else {
-                        slot.pos = [-9999, -9999];
-                    }
-                }
-                this.setDirtyCanvas(true, true);
-            };
-            this._spvRecomputePositions = recomputeCardSocketPositions;
-
-            // If a user drags a textarea taller, the cards below shift —
-            // re-pin the sockets. rAF-debounced so a single layout pass
-            // doesn't fire dozens of recomputes.
-            if (typeof ResizeObserver !== "undefined") {
-                const ro = new ResizeObserver(() => {
-                    if (this._spvResizePending) return;
-                    this._spvResizePending = true;
-                    requestAnimationFrame(() => {
-                        this._spvResizePending = false;
-                        this._spvRecomputePositions?.();
-                    });
-                });
-                ro.observe(cardList);
-                this._spvResizeObserver = ro;
-            }
-
             const refreshStatus = (extra) => {
                 const total = this.sceneState.scenes.length;
                 if (total === 0) {
@@ -647,10 +562,6 @@ app.registerExtension({
                         "Fill image_folder above, then click ↻ Rescan to load scenes.";
                     cardList.appendChild(empty);
                     refreshStatus();
-                    // No scenes → all prompt_in_N inputs hide.
-                    requestAnimationFrame(() =>
-                        this._spvRecomputePositions?.()
-                    );
                     return;
                 }
 
@@ -679,15 +590,6 @@ app.registerExtension({
                 });
 
                 refreshStatus();
-                // Pin prompt_in_N sockets to each card's row after DOM
-                // settles. Second rAF guards against the first paint
-                // returning zero-height rects on slow layouts.
-                requestAnimationFrame(() => {
-                    this._spvRecomputePositions?.();
-                    requestAnimationFrame(() =>
-                        this._spvRecomputePositions?.()
-                    );
-                });
             };
             this._renderCards = renderCards;
 
