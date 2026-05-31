@@ -2,7 +2,7 @@
 //
 // Card-per-scene layout: each image scanned from the folder becomes a card
 // with thumbnail + editable prompt textarea. State is serialised into the
-// hidden `scene_data_json` widget so it persists with the workflow.
+// hidden `_internal_state` widget so it persists with the workflow.
 //
 // Talks to the server-side scan endpoint at /scene_prompt_viewer/scan
 // when the user clicks ↻ Rescan.
@@ -424,11 +424,10 @@ app.registerExtension({
             // Initial state: empty scenes list, empty prompts map.
             this.sceneState = { scenes: [], prompts: {} };
 
-            // Find the auto-created scene_data_json widget and hide it.
-            const dataWidget = this.widgets?.find(w => w.name === "scene_data_json");
+            // Find the auto-created _internal_state widget and hide it.
+            const dataWidget = this.widgets?.find(w => w.name === "_internal_state");
             if (dataWidget) {
                 // hide visually but keep in widget list for serialisation
-                dataWidget.type = "hidden";
                 dataWidget.computeSize = () => [0, -4];
                 dataWidget.hidden = true;
                 dataWidget.value = JSON.stringify(this.sceneState);
@@ -731,7 +730,7 @@ app.registerExtension({
 
             // ComfyUI has restored widget values by now. Pull the saved JSON
             // and rebuild the card list from it.
-            const dataWidget = this.widgets?.find(w => w.name === "scene_data_json");
+            const dataWidget = this.widgets?.find(w => w.name === "_internal_state");
             if (dataWidget?.value) {
                 try {
                     const state = JSON.parse(dataWidget.value);

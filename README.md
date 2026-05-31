@@ -77,6 +77,16 @@ crowded night market with neon lights
 a misty pine forest at dawn
 ```
 
+### Connecting external prompt sources
+
+Each visible `prompt_in_N` input socket on the left accepts any STRING
+output. The package includes a helper node called **Scene Prompt Text**
+under the same `image/utils` category — a simple multiline textarea
+that's more comfortable than Primitive for long prompts.
+
+If you'd rather use comfyui-easy-use's `easy positive` / `easy negative`,
+or any other STRING source, they work too.
+
 ## Outputs
 
 | Socket | Type | Description |
@@ -104,6 +114,18 @@ Unused individual slots emit a same-size black image and an empty string.
 - **Workflow file size**: thumbnails are stored in the workflow JSON
   (as base64 JPEGs, ~5–10 KB each). For 15 images expect roughly an extra
   100 KB in the saved workflow.
+
+## Migrating from v4
+
+In v4.1 the hidden internal-state widget was renamed from `scene_data_json`
+to `_internal_state` (the leading underscore is a clear "private — don't
+touch" signal in the right-click "Convert … to input" menu).
+
+ComfyUI looks up saved widget values by name, so a workflow saved with v4
+won't restore its card state into the renamed widget. The node still loads
+fine — it just starts with an empty card list. Click **↻ Rescan** once to
+repopulate the cards, then re-save the workflow. New v4.1 workflows are
+unaffected.
 
 ## License
 

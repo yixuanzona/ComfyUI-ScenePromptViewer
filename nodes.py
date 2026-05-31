@@ -3,7 +3,7 @@ ScenePromptViewer v3 node implementation.
 
 The node's JS side renders a card per scanned image with an inline editable
 textarea. All per-image prompts are kept in a JSON payload stored in a hidden
-widget (`scene_data_json`), which gets passed to this `execute()` method when
+widget (`_internal_state`), which gets passed to this `execute()` method when
 the workflow runs.
 """
 
@@ -35,7 +35,7 @@ class ScenePromptViewer:
     @classmethod
     def INPUT_TYPES(cls):
         optional = {
-            f"prompt_in_{i}": ("STRING", {"forceInput": True})
+            f"prompt_in_{i}": ("STRING", {"forceInput": True, "multiline": True})
             for i in range(1, MAX_SLOTS + 1)
         }
         return {
@@ -55,8 +55,9 @@ class ScenePromptViewer:
                     "step": 1,
                 }),
                 # Hidden in the UI by the JS extension; stores the per-image
-                # prompts and thumbnail cache as a JSON string.
-                "scene_data_json": ("STRING", {
+                # prompts and thumbnail cache as a JSON string. The leading
+                # underscore signals "private — do not convert to input".
+                "_internal_state": ("STRING", {
                     "default": "{}",
                     "multiline": True,
                 }),
@@ -88,7 +89,7 @@ class ScenePromptViewer:
         image_folder: str,
         sort_by: str,
         slot_count: int,
-        scene_data_json: str,
+        _internal_state: str,
         **kwargs,
     ):
         folder_str = clean_path(image_folder)
@@ -99,7 +100,7 @@ class ScenePromptViewer:
             )
 
         # 1. parse the prompt map from the JS widget JSON
-        prompts_map = self._parse_prompts_map(scene_data_json)
+        prompts_map = self._parse_prompts_map(_internal_state)
 
         # 2. scan folder fresh — files may have been added/removed since
         #    the last rescan in the UI.
@@ -201,15 +202,15 @@ class ScenePromptViewer:
     # helpers
     # ------------------------------------------------------------------ #
     @staticmethod
-    def _parse_prompts_map(scene_data_json: str) -> Dict[str, str]:
+    def _parse_prompts_map(_internal_state: str) -> Dict[str, str]:
         """
         Extract the {filename_lower: prompt} map from the widget JSON.
         Returns an empty dict on any parse failure.
         """
-        if not scene_data_json:
+        if not _internal_state:
             return {}
         try:
-            state = json.loads(scene_data_json)
+            state = json.loads(_internal_state)
         except (json.JSONDecodeError, TypeError):
             return {}
         if not isinstance(state, dict):

@@ -6,14 +6,17 @@ output sockets plus a batch output.
 """
 
 from .nodes import ScenePromptViewer
+from .prompt_text_node import ScenePromptText
 from . import server_api  # noqa: F401  (registers HTTP route on import)
 
 NODE_CLASS_MAPPINGS = {
     "ScenePromptViewer": ScenePromptViewer,
+    "ScenePromptText":   ScenePromptText,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ScenePromptViewer": "Scene Prompt Viewer",
+    "ScenePromptText":   "Scene Prompt Text",
 }
 
 WEB_DIRECTORY = "./js"
