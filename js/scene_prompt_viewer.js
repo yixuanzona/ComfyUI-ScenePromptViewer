@@ -123,6 +123,45 @@ function applySlotCount(node, n) {
         ensureOutputVisible(node, `prompt_${i}`,   "STRING", i <= n);
         ensureInputVisible(node,  `prompt_in_${i}`, "STRING", i <= n);
     }
+    // Newly-added sockets need correct (hide) labels applied.
+    if (node._hiddenScenes && node.sceneState?.scenes) {
+        syncHiddenSocketLabels(node, node._hiddenScenes, node.sceneState.scenes);
+    }
+    node.setDirtyCanvas(true, true);
+}
+
+// ----------------------------------------------------------------------- //
+// Hidden-socket label sync — mark sockets of hidden scenes with "(hide)"
+// ----------------------------------------------------------------------- //
+function syncHiddenSocketLabels(node, hiddenScenes, scenes) {
+    // For each scene that occupies a slot, mark or unmark its sockets.
+    // Slots beyond what scenes occupy: leave their labels alone
+    // (those are "unused", not "hidden" — different state).
+    const sceneByIndex = new Map();   // 1-based slot → scene
+    scenes.forEach((s, idx) => sceneByIndex.set(idx + 1, s));
+
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+        const scene = sceneByIndex.get(i);
+        const isHidden = scene && hiddenScenes.has(scene.filename);
+
+        const setLabel = (slot, baseName) => {
+            if (!slot) return;
+            slot.label = isHidden ? `${baseName} (hide)` : undefined;
+        };
+
+        setLabel(
+            node.outputs?.find(o => o.name === `image_${i}`),
+            `image_${i}`
+        );
+        setLabel(
+            node.outputs?.find(o => o.name === `prompt_${i}`),
+            `prompt_${i}`
+        );
+        setLabel(
+            node.inputs?.find(inp => inp.name === `prompt_in_${i}`),
+            `prompt_in_${i}`
+        );
+    }
     node.setDirtyCanvas(true, true);
 }
 
@@ -365,6 +404,7 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden,
         gap: 6px;
         line-height: 1.5;
         min-height: 18px;
+        padding-right: 56px;   /* reserve space for action buttons in corner */
     `);
 
     const fname = document.createElement("span");
@@ -380,7 +420,7 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden,
     fname.textContent = scene.filename;
     fnameRow.appendChild(fname);
 
-    // Dimensions tag (Change 2 — present only after a v4.3 scan)
+    // Dimensions tag (present only after a v4.3+ scan)
     if (scene.width && scene.height) {
         const dims = document.createElement("span");
         applyStyle(dims, `
@@ -393,20 +433,21 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden,
         fnameRow.appendChild(dims);
     }
 
+    rightCol.appendChild(fnameRow);
+
+    // Override badge on its own row below the filename row
     if (isOverridden) {
-        const badge = document.createElement("span");
-        applyStyle(badge, `
+        const overrideRow = document.createElement("div");
+        applyStyle(overrideRow, `
             font-size: 10px;
             color: ${COLORS.accent};
             font-style: italic;
-            flex: 0 0 auto;
-            white-space: nowrap;
+            line-height: 1.4;
+            margin-top: -2px;
         `);
-        badge.textContent = "← input override";
-        fnameRow.appendChild(badge);
+        overrideRow.textContent = "← input override";
+        rightCol.appendChild(overrideRow);
     }
-
-    rightCol.appendChild(fnameRow);
 
     const textarea = document.createElement("textarea");
     textarea.value = prompt || "";
@@ -570,7 +611,7 @@ app.registerExtension({
             statusEl.textContent = "(no scan yet)";
 
             toolbar.appendChild(rescanBtn);
-            toolbar.appendChild(openFolderBtn);   // right after rescan
+            toolbar.appendChild(openFolderBtn);   // ← between Rescan and Import
             toolbar.appendChild(importBtn);
             toolbar.appendChild(exportBtn);
             wrapper.appendChild(toolbar);
@@ -729,6 +770,7 @@ app.registerExtension({
                 });
 
                 refreshStatus();
+                syncHiddenSocketLabels(this, this._hiddenScenes, this.sceneState.scenes);
             };
             this._renderCards = renderCards;
 

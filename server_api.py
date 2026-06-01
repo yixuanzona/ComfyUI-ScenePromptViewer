@@ -119,6 +119,10 @@ async def _scan_single_handler(request: web.Request) -> web.Response:
 
 
 async def _open_folder_handler(request: web.Request) -> web.Response:
+    """
+    Open the OS file explorer at the given folder. Local-only; no-op on
+    headless deployments.
+    """
     try:
         data = await request.json()
     except Exception:
@@ -137,7 +141,6 @@ async def _open_folder_handler(request: web.Request) -> web.Response:
     try:
         system = platform.system()
         if system == "Windows":
-            # Use explorer with the resolved path — no shell, no injection risk
             subprocess.Popen(["explorer", str(folder)])
         elif system == "Darwin":
             subprocess.Popen(["open", str(folder)])
