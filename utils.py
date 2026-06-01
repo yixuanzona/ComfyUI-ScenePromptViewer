@@ -44,6 +44,15 @@ def make_thumb_b64(img: Image.Image) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
+def make_thumb_data(img: Image.Image) -> dict:
+    """Return {thumbnail, width, height} for the UI scene record."""
+    return {
+        "thumbnail": make_thumb_b64(img),
+        "width":     img.width,
+        "height":    img.height,
+    }
+
+
 def clean_path(s: str) -> str:
     """Strip surrounding quotes and whitespace from a path string."""
     return s.strip().strip('"').strip("'")

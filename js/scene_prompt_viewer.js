@@ -262,10 +262,31 @@ function makeButton(label, variant = "default") {
     return btn;
 }
 
+function makeCardIconButton(label, tooltip) {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.title = tooltip;
+    btn.style.cssText = `
+        width: 22px;
+        height: 22px;
+        background: rgba(80, 80, 80, 0.6);
+        border: 1px solid #555;
+        color: #ccc;
+        font-size: 12px;
+        border-radius: 3px;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        font-family: inherit;
+    `;
+    return btn;
+}
+
 // ----------------------------------------------------------------------- //
 // Card builder
 // ----------------------------------------------------------------------- //
-function buildCard(scene, index, prompt, isBatchOnly, isOverridden, onPromptChange) {
+function buildCard(scene, index, prompt, isBatchOnly, isOverridden,
+                   onPromptChange, onReload, onHide) {
     const card = document.createElement("div");
     applyStyle(card, `
         background: ${COLORS.bgCard};
@@ -277,6 +298,7 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden, onPromptChan
         align-items: stretch;
         min-height: 90px;
     `);
+    card.style.position = "relative";  // for absolute-positioned actions
 
     // index column (number + socket hint)
     const indexCol = document.createElement("div");
@@ -336,27 +358,55 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden, onPromptChan
         gap: 4px;
     `);
 
-    const fname = document.createElement("div");
+    const fnameRow = document.createElement("div");
+    applyStyle(fnameRow, `
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        line-height: 1.5;
+        min-height: 18px;
+    `);
+
+    const fname = document.createElement("span");
     applyStyle(fname, `
         font-size: 11px;
         color: ${COLORS.muted};
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        flex: 1 1 auto;
+        min-width: 0;
     `);
     fname.textContent = scene.filename;
+    fnameRow.appendChild(fname);
+
+    // Dimensions tag (Change 2 — present only after a v4.3 scan)
+    if (scene.width && scene.height) {
+        const dims = document.createElement("span");
+        applyStyle(dims, `
+            font-size: 10px;
+            color: ${COLORS.dim};
+            flex: 0 0 auto;
+            white-space: nowrap;
+        `);
+        dims.textContent = `${scene.width}×${scene.height}`;
+        fnameRow.appendChild(dims);
+    }
+
     if (isOverridden) {
         const badge = document.createElement("span");
-        badge.textContent = " ← input override";
-        badge.style.cssText = `
+        applyStyle(badge, `
             font-size: 10px;
             color: ${COLORS.accent};
-            margin-left: 6px;
             font-style: italic;
-        `;
-        fname.appendChild(badge);
+            flex: 0 0 auto;
+            white-space: nowrap;
+        `);
+        badge.textContent = "← input override";
+        fnameRow.appendChild(badge);
     }
-    rightCol.appendChild(fname);
+
+    rightCol.appendChild(fnameRow);
 
     const textarea = document.createElement("textarea");
     textarea.value = prompt || "";
@@ -404,6 +454,41 @@ function buildCard(scene, index, prompt, isBatchOnly, isOverridden, onPromptChan
 
     rightCol.appendChild(textarea);
     card.appendChild(rightCol);
+
+    // ----- per-card action bar (top-right) ----- //
+    const actions = document.createElement("div");
+    applyStyle(actions, `
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        display: flex;
+        gap: 4px;
+        z-index: 1;
+    `);
+
+    const reloadBtn = makeCardIconButton("↻", "Reload this image's thumbnail");
+    reloadBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onReload(scene.filename);
+    });
+    actions.appendChild(reloadBtn);
+
+    const hideBtn = makeCardIconButton("✕", "Hide this scene for this session");
+    hideBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onHide(scene.filename);
+    });
+    hideBtn.addEventListener("mouseenter", () => {
+        hideBtn.style.background = "rgba(180, 60, 60, 0.7)";
+        hideBtn.style.borderColor = "#a04040";
+    });
+    hideBtn.addEventListener("mouseleave", () => {
+        hideBtn.style.background = "rgba(80, 80, 80, 0.6)";
+        hideBtn.style.borderColor = "#555";
+    });
+    actions.appendChild(hideBtn);
+
+    card.appendChild(actions);
     return card;
 }
 
@@ -423,6 +508,9 @@ app.registerExtension({
 
             // Initial state: empty scenes list, empty prompts map.
             this.sceneState = { scenes: [], prompts: {} };
+
+            // Session-only hidden set (filenames). Cleared on rescan/reload.
+            this._hiddenScenes = new Set();
 
             // Find the auto-created _internal_state widget and hide it.
             const dataWidget = this.widgets?.find(w => w.name === "_internal_state");
@@ -464,6 +552,8 @@ app.registerExtension({
             applyStyle(toolbar, "display: flex; gap: 6px; align-items: center;");
 
             const rescanBtn = makeButton("↻ Rescan", "accent");
+            const openFolderBtn = makeButton("📂 Open");
+            openFolderBtn.title = "Open the image folder in your OS file explorer";
             const importBtn = makeButton("Import all prompts");
             const exportBtn = makeButton("Export all prompts");
 
@@ -480,6 +570,7 @@ app.registerExtension({
             statusEl.textContent = "(no scan yet)";
 
             toolbar.appendChild(rescanBtn);
+            toolbar.appendChild(openFolderBtn);   // right after rescan
             toolbar.appendChild(importBtn);
             toolbar.appendChild(exportBtn);
             wrapper.appendChild(toolbar);
@@ -509,9 +600,49 @@ app.registerExtension({
 
             // ----- helpers bound to this node ----- //
             const persistState = () => {
-                if (this._dataWidget) {
-                    this._dataWidget.value = JSON.stringify(this.sceneState);
+                if (!this._dataWidget) return;
+                const payload = {
+                    scenes:  this.sceneState.scenes,
+                    prompts: this.sceneState.prompts,
+                    hidden:  Array.from(this._hiddenScenes),  // session-only
+                };
+                this._dataWidget.value = JSON.stringify(payload);
+            };
+
+            // Reload one scene's thumbnail without rescanning the folder.
+            this._reloadScene = async (filename) => {
+                const folderWidget = this.widgets?.find(w => w.name === "image_folder");
+                const folder = (folderWidget?.value || "").trim();
+                if (!folder) return;
+                try {
+                    const resp = await api.fetchApi("/scene_prompt_viewer/scan_single", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ folder, filename }),
+                    });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        refreshStatus(`reload failed: ${err.error || resp.statusText}`);
+                        return;
+                    }
+                    const data = await resp.json();
+                    // Replace just this scene in the state; keep order.
+                    const idx = this.sceneState.scenes.findIndex(s => s.filename === filename);
+                    if (idx >= 0) {
+                        this.sceneState.scenes[idx] = data;
+                        persistState();
+                        renderCards();
+                    }
+                } catch (e) {
+                    refreshStatus(`reload error: ${e.message || e}`);
                 }
+            };
+
+            // Hide one scene for this session (gap preserved in numbering).
+            this._hideScene = (filename) => {
+                this._hiddenScenes.add(filename);
+                persistState();
+                renderCards();
             };
 
             const getSlotCount = () => {
@@ -529,20 +660,24 @@ app.registerExtension({
                     statusEl.style.color = extra ? COLORS.error : COLORS.muted;
                     return;
                 }
+                const hidden = this._hiddenScenes.size;
                 let filled = 0;
                 for (const s of this.sceneState.scenes) {
+                    if (this._hiddenScenes.has(s.filename)) continue;
                     const p = this.sceneState.prompts[s.filename] || "";
                     if (p.trim()) filled++;
                 }
+                const visible = total - hidden;
                 const slotCount = getSlotCount();
-                let text = `${filled} / ${total} filled`;
+                let text = `${filled} / ${visible} filled`;
+                if (hidden > 0) text += ` · ${hidden} hidden (rescan to restore)`;
                 if (total > slotCount) {
                     text += ` · slots ${slotCount + 1}-${total} batch-only`;
                 }
                 if (extra) text = `${extra} · ${text}`;
                 statusEl.textContent = text;
                 statusEl.style.color =
-                    (filled === total) ? COLORS.success : COLORS.muted;
+                    (filled === visible && visible > 0) ? COLORS.success : COLORS.muted;
             };
 
             const renderCards = () => {
@@ -566,6 +701,9 @@ app.registerExtension({
 
                 const slotCount = getSlotCount();
                 scenes.forEach((scene, idx) => {
+                    // Hidden scenes are skipped, but their index slot is kept
+                    // (original 1-based numbering — gaps remain after hides).
+                    if (this._hiddenScenes.has(scene.filename)) return;
                     const i = idx + 1;
                     const currentPrompt =
                         this.sceneState.prompts[scene.filename] || "";
@@ -583,7 +721,9 @@ app.registerExtension({
                             this.sceneState.prompts[fname] = val;
                             persistState();
                             refreshStatus();
-                        }
+                        },
+                        (fname) => this._reloadScene(fname),   // ↻
+                        (fname) => this._hideScene(fname),     // ✕
                     );
                     cardList.appendChild(card);
                 });
@@ -630,6 +770,7 @@ app.registerExtension({
                     // Replace scenes; keep prompts (keyed by filename) so prompts
                     // for files that still exist are preserved across rescans.
                     this.sceneState.scenes = newScenes;
+                    this._hiddenScenes.clear();   // rescan restores hidden cards
                     persistState();
                     renderCards();
                 } catch (e) {
@@ -638,6 +779,29 @@ app.registerExtension({
                 } finally {
                     rescanBtn.disabled = false;
                     rescanBtn.textContent = "↻ Rescan";
+                }
+            });
+
+            // ----- Open folder button ----- //
+            openFolderBtn.addEventListener("click", async () => {
+                const folderWidget = this.widgets?.find(w => w.name === "image_folder");
+                const folder = (folderWidget?.value || "").trim();
+                if (!folder) {
+                    refreshStatus("image_folder is empty");
+                    return;
+                }
+                try {
+                    const resp = await api.fetchApi("/scene_prompt_viewer/open_folder", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ folder }),
+                    });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        refreshStatus(`open failed: ${err.error || resp.statusText}`);
+                    }
+                } catch (e) {
+                    refreshStatus(`open error: ${e.message || e}`);
                 }
             });
 
@@ -742,6 +906,17 @@ app.registerExtension({
                 } catch {
                     this.sceneState = { scenes: [], prompts: {} };
                 }
+            }
+
+            // Hidden state is session-only: always start fresh, and re-persist
+            // immediately to strip any saved hidden list from the widget value.
+            this._hiddenScenes = new Set();
+            if (this._dataWidget) {
+                this._dataWidget.value = JSON.stringify({
+                    scenes:  this.sceneState.scenes,
+                    prompts: this.sceneState.prompts,
+                    hidden:  [],
+                });
             }
 
             // Re-apply socket visibility from the restored slot_count value.

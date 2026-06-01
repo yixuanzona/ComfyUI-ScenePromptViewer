@@ -99,8 +99,8 @@ class ScenePromptViewer:
                 f"image_folder does not exist or is not a directory: {folder_str}"
             )
 
-        # 1. parse the prompt map from the JS widget JSON
-        prompts_map = self._parse_prompts_map(_internal_state)
+        # 1. parse the prompt map + hidden set from the JS widget JSON
+        prompts_map, hidden_set = self._parse_state(_internal_state)
 
         # 2. scan folder fresh — files may have been added/removed since
         #    the last rescan in the UI.
@@ -135,52 +135,78 @@ class ScenePromptViewer:
         # 4. letterbox to first image's dimensions
         target_w, target_h = paired[0][2].size
 
-        tensors: List[torch.Tensor] = []
-        output_prompts: List[str] = []
-        scene_data: List[dict] = []
-        filled = empty = 0
+        # Per-slot data (kept in original scan order, Y-mode)
+        slot_tensors:  List[torch.Tensor] = []   # for individual outputs
+        slot_prompts:  List[str]          = []
+        batch_tensors: List[torch.Tensor] = []   # IMAGE batch (filters hidden)
+        batch_prompts: List[str]          = []
+        scene_data:    List[dict]         = []
+        filled = empty = hidden_count = 0
 
         for i, (fname, prompt_text, img) in enumerate(paired, start=1):
+            is_hidden = fname.lower() in hidden_set
             # External per-slot override wins over the card textarea.
             override = kwargs.get(f"prompt_in_{i}")
             final_prompt = override if isinstance(override, str) else prompt_text
 
-            if final_prompt.strip():
-                filled += 1
+            if is_hidden:
+                hidden_count += 1
+                # Slot N gets a black image + empty prompt (gap preserved)
+                slot_tensors.append(
+                    torch.zeros((target_h, target_w, 3), dtype=torch.float32)
+                )
+                slot_prompts.append("")
             else:
-                empty += 1
-            output_prompts.append(final_prompt)
-
-            fitted = self._letterbox(img, target_w, target_h)
-            arr = np.asarray(fitted, dtype=np.float32) / 255.0
-            tensors.append(torch.from_numpy(arr))
+                if final_prompt.strip():
+                    filled += 1
+                else:
+                    empty += 1
+                fitted = self._letterbox(img, target_w, target_h)
+                arr = np.asarray(fitted, dtype=np.float32) / 255.0
+                tensor = torch.from_numpy(arr)
+                slot_tensors.append(tensor)
+                slot_prompts.append(final_prompt)
+                batch_tensors.append(tensor)
+                batch_prompts.append(final_prompt)
 
             scene_data.append({
-                "index": i,
-                "filename": fname,
-                "prompt": prompt_text,
+                "index":      i,
+                "filename":   fname,
+                "prompt":     prompt_text,
+                "hidden":     is_hidden,
                 "has_socket": i <= MAX_SLOTS,
             })
 
         # 5. build outputs
-        image_batch = torch.stack(tensors, dim=0)
-        combined_prompt = "\n".join(output_prompts)
+        # Batch: only non-hidden scenes. If everything is hidden, still produce
+        # a valid tensor (single black frame) so downstream nodes don't error.
+        if batch_tensors:
+            image_batch = torch.stack(batch_tensors, dim=0)
+        else:
+            image_batch = torch.zeros(
+                (1, target_h, target_w, 3), dtype=torch.float32
+            )
+        combined_prompt = "\n".join(batch_prompts)
 
+        # Individual outputs (Y-mode: indexed by original position)
         individual: list = []
         black = torch.zeros(
             (1, target_h, target_w, 3), dtype=torch.float32
         )
         for i in range(MAX_SLOTS):
-            if i < len(tensors):
-                individual.append(tensors[i].unsqueeze(0))  # [1,H,W,C]
-                individual.append(output_prompts[i])
+            if i < len(slot_tensors):
+                individual.append(slot_tensors[i].unsqueeze(0))  # [1,H,W,C]
+                individual.append(slot_prompts[i])
             else:
                 individual.append(black)
                 individual.append("")
 
         # status text
         total = len(paired)
-        status = f"{filled} / {total} filled"
+        visible = total - hidden_count
+        status = f"{filled} / {visible} filled"
+        if hidden_count:
+            status += f" · {hidden_count} hidden"
         if empty:
             status += f" · {empty} empty"
         if load_failures:
@@ -202,27 +228,30 @@ class ScenePromptViewer:
     # helpers
     # ------------------------------------------------------------------ #
     @staticmethod
-    def _parse_prompts_map(_internal_state: str) -> Dict[str, str]:
+    def _parse_state(scene_data_json: str) -> Tuple[Dict[str, str], set]:
         """
-        Extract the {filename_lower: prompt} map from the widget JSON.
-        Returns an empty dict on any parse failure.
+        Returns ({filename_lower: prompt}, {filename_lower hidden set}).
+        Returns ({}, set()) on any parse failure.
         """
-        if not _internal_state:
-            return {}
+        if not scene_data_json:
+            return {}, set()
         try:
-            state = json.loads(_internal_state)
+            state = json.loads(scene_data_json)
         except (json.JSONDecodeError, TypeError):
-            return {}
+            return {}, set()
         if not isinstance(state, dict):
-            return {}
-        prompts = state.get("prompts", {})
-        if not isinstance(prompts, dict):
-            return {}
-        return {
-            k.lower(): v
-            for k, v in prompts.items()
+            return {}, set()
+        prompts_raw = state.get("prompts", {})
+        hidden_raw  = state.get("hidden",  [])
+        prompts = {
+            k.lower(): v for k, v in (prompts_raw or {}).items()
             if isinstance(k, str) and isinstance(v, str)
-        }
+        } if isinstance(prompts_raw, dict) else {}
+        hidden = {
+            h.lower() for h in (hidden_raw or [])
+            if isinstance(h, str)
+        } if isinstance(hidden_raw, list) else set()
+        return prompts, hidden
 
     @staticmethod
     def _letterbox(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
