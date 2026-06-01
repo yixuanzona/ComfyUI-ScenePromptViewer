@@ -11,6 +11,7 @@ The JS extension calls these without running the workflow.
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 from pathlib import Path
@@ -141,7 +142,7 @@ async def _open_folder_handler(request: web.Request) -> web.Response:
     try:
         system = platform.system()
         if system == "Windows":
-            subprocess.Popen(["explorer", str(folder)])
+            os.startfile(str(folder))
         elif system == "Darwin":
             subprocess.Popen(["open", str(folder)])
         else:
