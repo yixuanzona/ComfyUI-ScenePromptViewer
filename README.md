@@ -11,7 +11,7 @@ override.
 
 ## What's in the box
 
-Two nodes:
+Three nodes:
 
 - **Scene Prompt Viewer** — the main node. Scans a folder, displays an
   editable card per image, outputs both a batch and individual sockets.
@@ -19,8 +19,12 @@ Two nodes:
   feeding external prompts into Scene Prompt Viewer's `prompt_in_N`
   inputs. (Use this instead of Primitive when you want a multiline
   text box.)
+- **Scene Output Saver** — a terminal (sink) node. Takes the
+  `IMAGE` / `prompts` / `filenames` batch outputs, expands a folder
+  template, and writes each image to disk with a matching `prompt.txt`.
+  See [`scene_output_saver_v1_0_spec.md`](scene_output_saver_v1_0_spec.md).
 
-Both live under **image → utils** in the node browser.
+All live under **image → utils** in the node browser.
 
 ## Features
 
@@ -96,6 +100,7 @@ convert-to-input dot.
 |--------|------|-------------|
 | `IMAGE` | IMAGE | All non-hidden scenes letterboxed to the first image's size, stacked as a batch |
 | `prompts` | STRING | All non-hidden prompts joined by `\n` |
+| `filenames` | STRING | All non-hidden source filenames (no extension) joined by `,`, parallel to the `IMAGE` batch. Feeds **Scene Output Saver**. |
 | `image_1` … `image_8` | IMAGE | Each slot's image as a 1-frame batch (black placeholder when slot is unused or scene hidden) |
 | `prompt_1` … `prompt_8` | STRING | Each slot's prompt (empty string when slot is unused or scene hidden) |
 

@@ -66,11 +66,11 @@ class ScenePromptViewer:
         }
 
     RETURN_TYPES = (
-        "IMAGE", "STRING",
+        "IMAGE", "STRING", "STRING",
         *(("IMAGE", "STRING") * MAX_SLOTS),
     )
     RETURN_NAMES = (
-        "IMAGE", "prompts",
+        "IMAGE", "prompts", "filenames",
         *(
             f"{kind}_{i + 1}"
             for i in range(MAX_SLOTS)
@@ -140,6 +140,7 @@ class ScenePromptViewer:
         slot_prompts:  List[str]          = []
         batch_tensors: List[torch.Tensor] = []   # IMAGE batch (filters hidden)
         batch_prompts: List[str]          = []
+        batch_filenames: List[str]        = []    # stems, parallel to batch
         scene_data:    List[dict]         = []
         filled = empty = hidden_count = 0
 
@@ -168,6 +169,7 @@ class ScenePromptViewer:
                 slot_prompts.append(final_prompt)
                 batch_tensors.append(tensor)
                 batch_prompts.append(final_prompt)
+                batch_filenames.append(Path(fname).stem)
 
             scene_data.append({
                 "index":      i,
@@ -187,6 +189,9 @@ class ScenePromptViewer:
                 (1, target_h, target_w, 3), dtype=torch.float32
             )
         combined_prompt = "\n".join(batch_prompts)
+        # Comma-joined original stems (no extension), parallel to the IMAGE
+        # batch above. Consumed by Scene Output Saver to name its files.
+        combined_filenames = ",".join(batch_filenames)
 
         # Individual outputs (Y-mode: indexed by original position)
         individual: list = []
@@ -221,7 +226,7 @@ class ScenePromptViewer:
                 "slot_count": [slot_count],
                 "max_slots":  [MAX_SLOTS],
             },
-            "result": (image_batch, combined_prompt, *individual),
+            "result": (image_batch, combined_prompt, combined_filenames, *individual),
         }
 
     # ------------------------------------------------------------------ #
