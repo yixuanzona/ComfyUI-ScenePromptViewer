@@ -6,7 +6,7 @@ textarea right next to its thumbnail. Comes with up to 8 individual
 output sockets (configurable), per-card actions, and external prompt
 override.
 
-![screenshot](images/image.png)
+![screenshot](docs/screenshot.png)
 <!-- TODO: replace with a real screenshot once available -->
 
 ## What's in the box
