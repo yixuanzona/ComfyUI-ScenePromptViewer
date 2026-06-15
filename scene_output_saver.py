@@ -142,7 +142,24 @@ class SceneOutputSaver:
         # 1. resolve per-image prompts (split on newline — matches main node)
         prompt_list = self._split_prompts(prompts, n)
 
-        # 2. resolve per-image filenames (comma-separated stems), with fallback
+        # 2. resolve per-image filenames (comma-separated stems).
+        #    If filenames were supplied but their count doesn't match the
+        #    image count, the streams can't be aligned — almost always because
+        #    a node between ScenePromptViewer and here changed the image count.
+        #    Abort rather than silently misname files. An empty `filenames`
+        #    means the user deliberately didn't wire it: fall back quietly.
+        #    Check the count BEFORE _resolve_filenames so its fallback warning
+        #    doesn't print ahead of the error.
+        if filenames.strip():
+            supplied = len([s for s in filenames.split(",") if s.strip()])
+            if supplied != n:
+                raise RuntimeError(
+                    f"[SceneOutputSaver] filenames count ({supplied}) does not "
+                    f"match image count ({n}). This usually means a node "
+                    f"between ScenePromptViewer and SceneOutputSaver has "
+                    f"changed the number of images. Filenames cannot be "
+                    f"aligned — aborting to prevent misnamed files."
+                )
         name_list = self._resolve_filenames(filenames, n)
 
         # 3. expand folder template → absolute target dir
