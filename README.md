@@ -35,7 +35,7 @@ Scene Prompt Viewer
   └── prompts → image processing
 ```
 
-> Tip: `prompts` outputs all prompts joined by newline. To split them per image for use in a loop, pair with a string-split node from your installed packs.
+> Tip: `prompts` outputs all prompts joined by newline. To split them per image, pair with a string-split node from your installed packs.
 
 **Visual library browser with individual handling**
 
@@ -116,24 +116,6 @@ ComfyUI/output/Scene01/20260612_v1/
 ```
 
 > Each run gets its own subfolder by changing `version`. This keeps iterations clearly separated and prevents previous outputs from being overwritten.
-
----
-
-## Import / Export prompt formats
-
-**Format A** — filename-mapped (order-independent):
-```
-scene_01.png | change to daytime, golden hour
-scene_02.jpg | change to nighttime, neon lights
-```
-
-**Format B** — one prompt per line, matched by scan order:
-```
-change to daytime, golden hour
-change to nighttime, neon lights
-```
-
-Both `|` and `｜` work. Format A is detected automatically when any line contains a filename.
 
 ---
 
