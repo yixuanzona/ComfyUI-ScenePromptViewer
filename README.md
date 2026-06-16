@@ -51,21 +51,17 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 
 ## Quick start
 
-1. Drop **Scene Prompt Viewer** onto the canvas
-2. Paste your image folder path into `image_folder`
-3. Click **↻ Rescan** — one card appears per image
-4. Write a prompt on each card (leave blank if your workflow doesn't need them)
-5. Connect `IMAGE` → your processing nodes → **Scene Output Saver**
-6. Connect `filenames` directly to Scene Output Saver, bypassing any processing nodes
-7. Set `scene` and `version` in Scene Output Saver
-8. Queue
+1. Drop **Scene Prompt Viewer** onto the canvas, paste your image folder path, click **↻ Rescan**
+2. Write a prompt on each card if needed
+3. Connect `IMAGE` → your processing nodes → **Scene Output Saver**; connect `filenames` directly to Scene Output Saver
+4. Set `scene` and `version` in Scene Output Saver, then Queue
 
 ---
 
 ## Scene Prompt Viewer
 
 
-### Toolbar
+## Toolbar
 
 | Button | Action |
 |--------|--------|
@@ -74,7 +70,7 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 | Import all prompts | Fill all cards from a pasted block |
 | Export all prompts | Copy all prompts to clipboard |
 
-### Per-card buttons
+## Per-card buttons
 
 | Button | Action |
 |--------|--------|
@@ -86,7 +82,7 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 ## Scene Output Saver
 
 
-### Settings
+## Settings
 
 | Field | Default | Description |
 |-------|---------|-------------|
