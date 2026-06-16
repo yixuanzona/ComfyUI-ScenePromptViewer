@@ -61,7 +61,7 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 ## Scene Prompt Viewer
 
 
-## Toolbar
+#### Toolbar
 
 | Button | Action |
 |--------|--------|
@@ -70,7 +70,7 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 | Import all prompts | Fill all cards from a pasted block |
 | Export all prompts | Copy all prompts to clipboard |
 
-## Per-card buttons
+#### Per-card buttons
 
 | Button | Action |
 |--------|--------|
@@ -82,7 +82,7 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 ## Scene Output Saver
 
 
-## Settings
+#### Settings
 
 | Field | Default | Description |
 |-------|---------|-------------|
