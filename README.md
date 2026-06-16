@@ -4,8 +4,6 @@ A ComfyUI custom node that lets you load a folder of images, preview each one wi
 
 ![screenshot](images/image02.png)
 
----
-
 ## Features
 
 - Scans a folder and displays each image as a card — thumbnail, filename, and editable prompt textarea
@@ -17,7 +15,7 @@ A ComfyUI custom node that lets you load a folder of images, preview each one wi
 
 ## Use cases
 
-**Batch image processing with original filenames preserved**
+- **Batch image processing with original filenames preserved**
 
 Send a whole folder through any processing node. Results are saved with the same filenames as the source — not sequential numbers.
 
@@ -27,13 +25,12 @@ Scene Prompt Viewer → image processing → Scene Output Saver
 > When using individual sockets for single-image processing, the built-in Save Image node with a manually typed filename is simpler than Scene Output Saver, which is designed for batch use.
 
 
-**Visual library browser with individual handling**
+- **Visual library browser with individual handling**
 
 See your entire image folder at a glance without opening multiple Load Image nodes. Use `slot_count` to pull out specific images into separate downstream workflows — all within the same node.
 
 > Tip: `prompts` outputs all prompts joined by newline. To split them per image, pair with a string-split node from your installed packs.
 
----
 
 ## Nodes
 
@@ -46,7 +43,6 @@ Receives the IMAGE batch and filenames, builds a subfolder from your template, a
 - **Scene Prompt Text** — helper node
 A multiline text input for feeding longer prompts into `prompt_in_N` overrides.
 
----
 
 ## Install
 
@@ -57,7 +53,7 @@ git clone https://github.com/<your-username>/Comfyui-ScenePromptViewer.git
 
 Restart ComfyUI. All nodes appear under **image → utils**.
 
----
+
 
 ## Quick start
 
@@ -92,7 +88,7 @@ An inline card UI for visualising and editing your image library directly on the
 | ↻ | Reload this card's thumbnail |
 | ✕ | Hide this scene for the session (Rescan to restore) |
 
----
+
 
 ## Scene Output Saver
 
@@ -118,7 +114,7 @@ ComfyUI/output/Scene01/20260612_v1/
 
 > Each run gets its own subfolder by changing `version`. This keeps iterations clearly separated and prevents previous outputs from being overwritten.
 
----
+
 
 ## Notes
 
