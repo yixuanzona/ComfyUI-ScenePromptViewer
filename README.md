@@ -42,7 +42,7 @@ See your entire image folder at a glance without opening multiple Load Image nod
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/<your-username>/Comfyui-ScenePromptViewer.git
+git clone https://github.com/yixuanzona/ComfyUI-ScenePromptViewer.git
 ```
 
 Restart ComfyUI. All nodes appear under **image → utils**.
