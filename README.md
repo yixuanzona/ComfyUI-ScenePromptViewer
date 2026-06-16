@@ -2,7 +2,7 @@
 
 A ComfyUI custom node that lets you load a folder of images, preview each one with its own editable prompt directly on the node, batch process them through any downstream workflow, and save the results using the original filenames.
 
-![screenshot](docs/screenshot.png)
+![screenshot](images/image02.png)
 
 ---
 
@@ -24,36 +24,25 @@ Send a whole folder through any processing node. Results are saved with the same
 ```
 Scene Prompt Viewer → image processing → Scene Output Saver
 ```
-
-**Per-image prompts for AI editing**
-
-Write a different prompt on each card. Every image gets processed with its own instruction automatically — no manual socket switching needed.
-
-```
-Scene Prompt Viewer
-  ├── IMAGE   → image processing → Scene Output Saver
-  └── prompts → image processing
-```
-
-> Tip: `prompts` outputs all prompts joined by newline. To split them per image, pair with a string-split node from your installed packs.
+> When using individual sockets for single-image processing, the built-in Save Image node with a manually typed filename is simpler than Scene Output Saver, which is designed for batch use.
 
 **Visual library browser with individual handling**
 
 See your entire image folder at a glance without opening multiple Load Image nodes. Use `slot_count` to pull out specific images into separate downstream workflows — all within the same node.
 
-> When using individual sockets for single-image processing, the built-in Save Image node with a manually typed filename is simpler than Scene Output Saver, which is designed for batch use.
+> Tip: `prompts` outputs all prompts joined by newline. To split them per image, pair with a string-split node from your installed packs.
 
 ---
 
 ## Nodes
 
-**Scene Prompt Viewer** — main node
+- **Scene Prompt Viewer** — main node
 Scans a folder and shows a card per image. Outputs IMAGE batch, prompts, and filenames. Use `slot_count` to expose individual `image_N` / `prompt_N` sockets for per-image handling.
 
-**Scene Output Saver** — output node, designed to pair with Scene Prompt Viewer
+- **Scene Output Saver** — output node, designed to pair with Scene Prompt Viewer
 Receives the IMAGE batch and filenames, builds a subfolder from your template, and saves each file using its original name.
 
-**Scene Prompt Text** — helper node
+- **Scene Prompt Text** — helper node
 A multiline text input for feeding longer prompts into `prompt_in_N` overrides.
 
 ---
@@ -105,13 +94,13 @@ Saves each image in the batch to a subfolder built from a template, using the or
 | `folder_template` | `{scene}/{date}_{version}` | Subfolder structure — supports `{scene}` `{date}` `{version}` |
 | `scene` | `scene` | Your project or batch name |
 | `version` | `v1` | Label for this run |
-| `filename_suffix` | _(empty)_ | Appended before the extension — e.g. `_resize` → `pig_01_resize.png` |
+| `filename_suffix` | _(empty)_ | Appended before the extension — e.g. `_resize` → `WinterScene_resize.png` |
 
 **Example** — `scene = Scene01`, `version = v1`, `filename_suffix = _resize`:
 ```
 ComfyUI/output/Scene01/20260612_v1/
-  pig_01_resize.png
-  pig_02_resize.png
+  WinterScene_resize.png
+  CityScene_resize.png
   ...
 ```
 
@@ -135,8 +124,6 @@ git clone https://github.com/<your-username>/Comfyui-ScenePromptViewer.git
 ```
 
 Restart ComfyUI. All nodes appear under **image → utils**.
-
-No extra packages required — uses only what ComfyUI ships (`Pillow`, `torch`, `numpy`, `aiohttp`).
 
 ---
 
