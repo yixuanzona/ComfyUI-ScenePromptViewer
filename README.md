@@ -64,7 +64,6 @@ Restart ComfyUI. All nodes appear under **image → utils**.
 
 ## Scene Prompt Viewer
 
-An inline card UI for visualising and editing your image library directly on the node. Each card shows the thumbnail, filename, and a prompt textarea. The full batch and individual outputs live on the same node — no need to rebuild your canvas when switching between batch and per-image workflows.
 
 ### Toolbar
 
@@ -86,7 +85,6 @@ An inline card UI for visualising and editing your image library directly on the
 
 ## Scene Output Saver
 
-Saves each image in the batch to a subfolder built from a template, using the original filename.
 
 ### Settings
 
