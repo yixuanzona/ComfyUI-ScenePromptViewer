@@ -4,12 +4,17 @@ A ComfyUI custom node that lets you load a folder of images, preview each one wi
 
 ![screenshot](images/image02.png)
 
-## Features
+## Nodes
 
-- Scans a folder and displays each image as a card — thumbnail, filename, and editable prompt textarea
-- Outputs IMAGE batch, prompts, and filenames for downstream processing
-- Batch output handles any number of images — use `slot_count` to additionally expose up to 8 individual sockets for images that need separate handling
-- Paired with Scene Output Saver to write results back to disk using the original filenames
+- **Scene Prompt Viewer** — main node
+Scans a folder and shows a card per image. Outputs IMAGE batch, prompts, and filenames. Use `slot_count` to expose individual `image_N` / `prompt_N` sockets for per-image handling.
+
+- **Scene Output Saver** — output node, designed to pair with Scene Prompt Viewer
+Receives the IMAGE batch and filenames, builds a subfolder from your template, and saves each file using its original name.
+
+- **Scene Prompt Text** — helper node
+A multiline text input for feeding longer prompts into `prompt_in_N` overrides.
+
 
 ---
 
@@ -31,17 +36,6 @@ See your entire image folder at a glance without opening multiple Load Image nod
 
 > Tip: `prompts` outputs all prompts joined by newline. To split them per image, pair with a string-split node from your installed packs.
 
-
-## Nodes
-
-- **Scene Prompt Viewer** — main node
-Scans a folder and shows a card per image. Outputs IMAGE batch, prompts, and filenames. Use `slot_count` to expose individual `image_N` / `prompt_N` sockets for per-image handling.
-
-- **Scene Output Saver** — output node, designed to pair with Scene Prompt Viewer
-Receives the IMAGE batch and filenames, builds a subfolder from your template, and saves each file using its original name.
-
-- **Scene Prompt Text** — helper node
-A multiline text input for feeding longer prompts into `prompt_in_N` overrides.
 
 
 ## Install
