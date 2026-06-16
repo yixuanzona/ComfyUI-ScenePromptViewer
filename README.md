@@ -15,7 +15,7 @@ Receives the IMAGE batch and filenames, builds a subfolder from your template, a
 - **Scene Prompt Text** — helper node
 A multiline text input for feeding longer prompts into `prompt_in_N` overrides.
 
-
+![screenshot](images/image03.png)
 ---
 
 ## Use cases
