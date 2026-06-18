@@ -39,7 +39,7 @@ See your entire image folder at a glance without opening multiple Load Image nod
 
 
 ## Install
-
+Install via ComfyUI Manager by searching ScenePromptViewer in the Node Pack tab, or clone manually:
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/yixuanzona/ComfyUI-ScenePromptViewer.git
